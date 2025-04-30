@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Azalea Haven</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://images.unsplash.com/photo-1525871334969-fe4a5c4a6f85') no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #fff;
+    }
+    .overlay {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 30px;
+      border-radius: 15px;
+      text-align: center;
+    }
+    input[type="password"] {
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      margin: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      background-color: #f48fb1;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <h1>ðŸŒ¸ Welcome to Azalea Haven ðŸŒ¸</h1>
+    <p>A floral escape â€” blooms, beauty, and botanicals</p>
+    <input type="password" id="password" placeholder="Enter access password">
+    <br>
+    <button onclick="checkPassword()">Enter</button>
+  </div>
+
+  <script>
+function checkPassword() {
+  const employeePassword = "Staff";
+  const userPassword = "Azalea123";
+  const adminPassword = "Admin";
+  const ownerPassword = "Owner";
+  const userInput = document.getElementById("password").value;
+
+  if (userInput === employeePassword) {
+    window.location.href = "employee.php";
+  } else if (userInput === userPassword) {
+    window.location.href = "main.php";
+  } else if (userInput === adminPassword) {
+    window.location.href = "admin_dashboard.php"; 
+  } else if (userInput === ownerPassword) {
+    window.location.href = "owner_dashboard.php";
+  } else {
+    alert("Incorrect password. Try again.");
+  }
+}
+</script>
+
+</body>
+</html>
