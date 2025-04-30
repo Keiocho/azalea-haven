@@ -2,35 +2,31 @@
 require 'db_connect.php';
 session_start();
 
-// ========== EMPLOYEE/ADMIN MANAGEMENT ==========
 // Update employee info
 if (isset($_POST['update_employee'])) {
-    $stmt = $conn->prepare("UPDATE employees SET name=?, email=?, role=? WHERE id=?");
-    $stmt->bind_param("sssi", $_POST['name'], $_POST['email'], $_POST['role'], $_POST['id']);
+    $stmt = $conn->prepare("UPDATE Employee SET fName=?, lName=?, position=?, phone=? WHERE eID=?");
+    $stmt->bind_param("ssssi", $_POST['fName'], $_POST['lName'], $_POST['position'], $_POST['phone'], $_POST['eID']);
     $stmt->execute();
     $stmt->close();
 }
 
 // Delete employee
 if (isset($_POST['delete_employee'])) {
-    $stmt = $conn->prepare("DELETE FROM employees WHERE id=?");
-    $stmt->bind_param("i", $_POST['id']);
+    $stmt = $conn->prepare("DELETE FROM Employee WHERE eID=?");
+    $stmt->bind_param("i", $_POST['eID']);
     $stmt->execute();
     $stmt->close();
 }
 
-// ========== INVENTORY MANAGEMENT ==========
-// Add/remove inventory
+// Update inventory
 if (isset($_POST['update_inventory'])) {
     $product_id = intval($_POST['product_id']);
     $action = $_POST['action'];
     $amount = intval($_POST['amount']);
 
-    if ($action === 'add') {
-        $stmt = $conn->prepare("UPDATE products SET quantity = quantity + ? WHERE id = ?");
-    } else {
-        $stmt = $conn->prepare("UPDATE products SET quantity = GREATEST(quantity - ?, 0) WHERE id = ?");
-    }
+    $stmt = ($action === 'add') ?
+        $conn->prepare("UPDATE Products SET quantity = quantity + ? WHERE product_id = ?") :
+        $conn->prepare("UPDATE Products SET quantity = GREATEST(quantity - ?, 0) WHERE product_id = ?");
 
     if ($stmt) {
         $stmt->bind_param("ii", $amount, $product_id);
@@ -41,79 +37,55 @@ if (isset($_POST['update_inventory'])) {
     }
 }
 
-// ========== DATA FETCHING ==========
-$employees = $conn->query("SELECT * FROM employees");
-$inventory = $conn->query("SELECT * FROM products");
-$sales = $conn->query("SELECT * FROM cart");
+// Fetch employee, inventory, and cart totals
+$employees = $conn->query("SELECT * FROM Employee");
+$inventory = $conn->query("SELECT * FROM Products");
+$sales = $conn->query("SELECT * FROM Cart");
 
 $total_sales = 0;
-$item_sales = [];
-
 while ($row = $sales->fetch_assoc()) {
     $total_sales += $row['total'];
-    $item = $row['product_name'];
-    $qty = $row['quantity'];
-
-    if (!isset($item_sales[$item])) $item_sales[$item] = 0;
-    $item_sales[$item] += $qty;
 }
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Owner Dashboard - Azalea Haven</title>
+    <title>Owner Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #fafafa; padding: 20px; }
-        h1, h2, h3 { margin-top: 30px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        body { font-family: Arial, sans-serif; background: #f8f8f8; padding: 30px; }
+        .section { background: #fff; padding: 20px; margin-bottom: 40px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+        h2 { margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
-        form { margin-bottom: 15px; }
-        input, select, button { margin: 5px; padding: 7px; }
-        .section { background: #fff; padding: 20px; margin-bottom: 30px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
-        .shortcut-btns a button { margin-right: 10px; }
+        input, select, button { padding: 6px; margin: 5px; }
     </style>
 </head>
 <body>
 
-<h1>🌸 Owner Dashboard - Azalea Haven 🌸</h1>
+<h1>🌿 Owner Dashboard - Azalea Haven</h1>
 
-<!-- SHORTCUT LINKS -->
-<div class="section shortcut-btns">
-    <h2>🔧 Owner Actions</h2>
-    <a href="inventory_management.php">
-        <button>➕ Add or Manage Products</button>
-    </a>
-    <a href="owner_hire.php">
-        <button>👤 Hire New Employee/Admin</button>
-    </a>
-</div>
-
-<!-- EMPLOYEE/ADMIN MANAGEMENT -->
 <div class="section">
-    <h2>👥 Staff Management</h2>
+    <h2>👥 Employee Management</h2>
     <?php while ($emp = $employees->fetch_assoc()): ?>
         <form method="POST">
-            <input type="hidden" name="id" value="<?= $emp['id'] ?>">
-            <input type="text" name="name" value="<?= htmlspecialchars($emp['name']) ?>" required>
-            <input type="email" name="email" value="<?= htmlspecialchars($emp['email']) ?>" required>
-            <select name="role">
-                <option value="employee" <?= $emp['role'] == 'employee' ? 'selected' : '' ?>>Employee</option>
-                <option value="admin" <?= $emp['role'] == 'admin' ? 'selected' : '' ?>>Admin</option>
-            </select>
+            <input type="hidden" name="eID" value="<?= $emp['eID'] ?>">
+            <input type="text" name="fName" value="<?= htmlspecialchars($emp['fName']) ?>" required>
+            <input type="text" name="lName" value="<?= htmlspecialchars($emp['lName']) ?>" required>
+            <input type="text" name="position" value="<?= htmlspecialchars($emp['position']) ?>" required>
+            <input type="text" name="phone" value="<?= htmlspecialchars($emp['phone']) ?>">
             <button type="submit" name="update_employee">Update</button>
-            <button type="submit" name="delete_employee" onclick="return confirm('Are you sure?')">Remove</button>
+            <button type="submit" name="delete_employee" onclick="return confirm('Are you sure you want to remove this employee?')">Remove</button>
         </form>
     <?php endwhile; ?>
 </div>
 
-<!-- INVENTORY MANAGEMENT -->
 <div class="section">
     <h2>📦 Inventory Management</h2>
     <?php foreach ($inventory as $item): ?>
         <form method="POST">
             <strong><?= htmlspecialchars($item['name']) ?> — Qty: <?= $item['quantity'] ?></strong>
-            <input type="hidden" name="product_id" value="<?= $item['id'] ?>">
+            <input type="hidden" name="product_id" value="<?= $item['product_id'] ?>">
             <input type="number" name="amount" value="1" min="1" required>
             <select name="action">
                 <option value="add">Add</option>
@@ -124,21 +96,12 @@ while ($row = $sales->fetch_assoc()) {
     <?php endforeach; ?>
 </div>
 
-<!-- SALES SUMMARY -->
 <div class="section">
-    <h2>💰 Financial Summary</h2>
-    <p><strong>Total Profit:</strong> $<?= number_format($total_sales, 2) ?></p>
-
-    <h3>Items Sold</h3>
-    <table>
-        <tr><th>Product</th><th>Quantity Sold</th></tr>
-        <?php foreach ($item_sales as $name => $qty): ?>
-        <tr><td><?= htmlspecialchars($name) ?></td><td><?= $qty ?></td></tr>
-        <?php endforeach; ?>
-    </table>
+    <h2>💰 Sales Summary</h2>
+    <p><strong>Total Sales:</strong> $<?= number_format($total_sales, 2) ?></p>
 </div>
 
-<a href="LandingPage.html">⬅ Back to Home</a>
+<a href="landing.php">← Back to Home</a>
 
 </body>
 </html>
