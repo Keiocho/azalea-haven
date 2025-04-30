@@ -2,15 +2,31 @@
 require 'db_connect.php';
 session_start();
 
-// Update employee info
-if (isset($_POST['update_employee'])) {
-    $stmt = $conn->prepare("UPDATE Employee SET fName=?, lName=?, position=?, phone=? WHERE eID=?");
-    $stmt->bind_param("ssssi", $_POST['fName'], $_POST['lName'], $_POST['position'], $_POST['phone'], $_POST['eID']);
+// Handle Add Employee
+if (isset($_POST['add_employee'])) {
+    $stmt = $conn->prepare("INSERT INTO Employee (position, fName, lName, street, city, state, zip, phone, employmentDate, ssn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssssssss",
+        $_POST['position'], $_POST['fName'], $_POST['lName'],
+        $_POST['street'], $_POST['city'], $_POST['state'], $_POST['zip'],
+        $_POST['phone'], $_POST['employmentDate'], $_POST['ssn']
+    );
     $stmt->execute();
     $stmt->close();
 }
 
-// Delete employee
+// Handle Update Employee
+if (isset($_POST['update_employee'])) {
+    $stmt = $conn->prepare("UPDATE Employee SET position=?, fName=?, lName=?, street=?, city=?, state=?, zip=?, phone=?, employmentDate=?, ssn=? WHERE eID=?");
+    $stmt->bind_param("ssssssssssi",
+        $_POST['position'], $_POST['fName'], $_POST['lName'],
+        $_POST['street'], $_POST['city'], $_POST['state'], $_POST['zip'],
+        $_POST['phone'], $_POST['employmentDate'], $_POST['ssn'], $_POST['eID']
+    );
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Handle Delete Employee
 if (isset($_POST['delete_employee'])) {
     $stmt = $conn->prepare("DELETE FROM Employee WHERE eID=?");
     $stmt->bind_param("i", $_POST['eID']);
@@ -18,7 +34,7 @@ if (isset($_POST['delete_employee'])) {
     $stmt->close();
 }
 
-// Update inventory
+// Handle Inventory Update
 if (isset($_POST['update_inventory'])) {
     $product_id = intval($_POST['product_id']);
     $action = $_POST['action'];
@@ -37,15 +53,15 @@ if (isset($_POST['update_inventory'])) {
     }
 }
 
-// Fetch employee, inventory, and cart totals
-$employees = $conn->query("SELECT * FROM Employee");
+// Fetch inventory and sales summary
 $inventory = $conn->query("SELECT * FROM Products");
-$sales = $conn->query("SELECT * FROM Cart");
-
-$total_sales = 0;
-while ($row = $sales->fetch_assoc()) {
-    $total_sales += $row['total'];
-}
+$sales_summary = $conn->query("
+    SELECT p.name, SUM(ci.quantity) as sold_qty
+    FROM CartItems ci
+    JOIN Products p ON ci.product_id = p.product_id
+    GROUP BY p.product_id
+");
+$sales_total = $conn->query("SELECT SUM(total) as total_sales FROM Cart")->fetch_assoc()['total_sales'];
 ?>
 
 <!DOCTYPE html>
@@ -55,50 +71,147 @@ while ($row = $sales->fetch_assoc()) {
     <style>
         body { font-family: Arial, sans-serif; background: #f8f8f8; padding: 30px; }
         .section { background: #fff; padding: 20px; margin-bottom: 40px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
-        h2 { margin-top: 0; }
+        input, select, button { padding: 6px; margin: 4px; width: 160px; }
+        form { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
-        input, select, button { padding: 6px; margin: 5px; }
     </style>
 </head>
 <body>
 
 <h1>🌿 Owner Dashboard - Azalea Haven</h1>
 
+<!-- Add New Employee -->
 <div class="section">
-    <h2>👥 Employee Management</h2>
-    <?php while ($emp = $employees->fetch_assoc()): ?>
-        <form method="POST">
-            <input type="hidden" name="eID" value="<?= $emp['eID'] ?>">
-            <input type="text" name="fName" value="<?= htmlspecialchars($emp['fName']) ?>" required>
-            <input type="text" name="lName" value="<?= htmlspecialchars($emp['lName']) ?>" required>
-            <input type="text" name="position" value="<?= htmlspecialchars($emp['position']) ?>" required>
-            <input type="text" name="phone" value="<?= htmlspecialchars($emp['phone']) ?>">
-            <button type="submit" name="update_employee">Update</button>
-            <button type="submit" name="delete_employee" onclick="return confirm('Are you sure you want to remove this employee?')">Remove</button>
-        </form>
-    <?php endwhile; ?>
+    <h2>👥 Add New Employee</h2>
+    <form method="POST">
+        <input name="position" placeholder="Position" required>
+        <input name="fName" placeholder="First Name" required>
+        <input name="lName" placeholder="Last Name" required>
+        <input name="street" placeholder="Street">
+        <input name="city" placeholder="City">
+        <input name="state" placeholder="State">
+        <input name="zip" placeholder="Zip">
+        <input name="phone" placeholder="Phone">
+        <input name="employmentDate" placeholder="Employment Date" type="date">
+        <input name="ssn" placeholder="SSN">
+        <button type="submit" name="add_employee">Add Employee</button>
+    </form>
 </div>
 
+<!-- Manage Employees -->
+<div class="section">
+    <h2>✏️ Manage Employees</h2>
+
+    <!-- Search Form -->
+    <form method="GET" style="display: flex; flex-wrap: wrap; gap: 10px;">
+        <select name="select_eID">
+            <option value="">🔽 Select by Employee ID</option>
+            <?php
+            $empIDs = $conn->query("SELECT eID, fName, lName FROM Employee");
+            while ($opt = $empIDs->fetch_assoc()):
+                $selected = (isset($_GET['select_eID']) && $_GET['select_eID'] == $opt['eID']) ? 'selected' : '';
+                echo "<option value='{$opt['eID']}' $selected>Employee #{$opt['eID']} – {$opt['fName']} {$opt['lName']}</option>";
+            endwhile;
+            ?>
+        </select>
+
+        <input type="text" name="search_name" placeholder="Search by Name" value="<?= $_GET['search_name'] ?? '' ?>">
+        <input type="text" name="search_position" placeholder="Search by Position" value="<?= $_GET['search_position'] ?? '' ?>">
+        <button type="submit">🔍 Search</button>
+    </form>
+
+    <?php
+    // Build search query
+    $conditions = [];
+    $params = [];
+    $types = "";
+
+    if (!empty($_GET['select_eID'])) {
+        $conditions[] = "eID = ?";
+        $params[] = $_GET['select_eID'];
+        $types .= "i";
+    }
+    if (!empty($_GET['search_name'])) {
+        $conditions[] = "(fName LIKE ? OR lName LIKE ?)";
+        $like = "%" . $_GET['search_name'] . "%";
+        $params[] = $like;
+        $params[] = $like;
+        $types .= "ss";
+    }
+    if (!empty($_GET['search_position'])) {
+        $conditions[] = "position LIKE ?";
+        $params[] = "%" . $_GET['search_position'] . "%";
+        $types .= "s";
+    }
+
+    if (!empty($conditions)) {
+        $sql = "SELECT * FROM Employee WHERE " . implode(" AND ", $conditions);
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $results = $stmt->get_result();
+
+        while ($emp = $results->fetch_assoc()):
+    ?>
+            <form method="POST">
+                <input name="eID_display" placeholder="Employee ID" value="<?= $emp['eID'] ?>" readonly>
+                <input type="hidden" name="eID" value="<?= $emp['eID'] ?>">
+                <input name="position" placeholder="Position" value="<?= htmlspecialchars($emp['position']) ?>" required>
+                <input name="fName" placeholder="First Name" value="<?= htmlspecialchars($emp['fName']) ?>" required>
+                <input name="lName" placeholder="Last Name" value="<?= htmlspecialchars($emp['lName']) ?>" required>
+                <input name="street" placeholder="Street" value="<?= htmlspecialchars($emp['street']) ?>">
+                <input name="city" placeholder="City" value="<?= htmlspecialchars($emp['city']) ?>">
+                <input name="state" placeholder="State" value="<?= htmlspecialchars($emp['state']) ?>">
+                <input name="zip" placeholder="Zip" value="<?= htmlspecialchars($emp['zip']) ?>">
+                <input name="phone" placeholder="Phone" value="<?= htmlspecialchars($emp['phone']) ?>">
+                <input name="employmentDate" placeholder="Employment Date" type="date" value="<?= $emp['employmentDate'] ?>">
+                <input name="ssn" placeholder="SSN" value="<?= htmlspecialchars($emp['ssn']) ?>">
+                <button name="update_employee">Update</button>
+                <button name="delete_employee" onclick="return confirm('Are you sure you want to delete this employee?')">Remove</button>
+            </form>
+    <?php
+        endwhile;
+        $stmt->close();
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['search_name']) || isset($_GET['search_position']) || isset($_GET['select_eID']))) {
+        echo "<p><em>No matching employees found.</em></p>";
+    }
+    ?>
+</div>
+
+<!-- Inventory Section -->
 <div class="section">
     <h2>📦 Inventory Management</h2>
-    <?php foreach ($inventory as $item): ?>
-        <form method="POST">
-            <strong><?= htmlspecialchars($item['name']) ?> — Qty: <?= $item['quantity'] ?></strong>
-            <input type="hidden" name="product_id" value="<?= $item['product_id'] ?>">
-            <input type="number" name="amount" value="1" min="1" required>
-            <select name="action">
-                <option value="add">Add</option>
-                <option value="remove">Remove</option>
-            </select>
-            <button type="submit" name="update_inventory">Update</button>
-        </form>
-    <?php endforeach; ?>
+    <form method="POST">
+        <select name="product_id" required>
+            <?php mysqli_data_seek($inventory, 0); while ($item = $inventory->fetch_assoc()): ?>
+                <option value="<?= $item['product_id'] ?>">
+                    <?= htmlspecialchars($item['name']) ?> — Qty: <?= $item['quantity'] ?>
+                </option>
+            <?php endwhile; ?>
+        </select>
+        <input type="number" name="amount" value="1" min="1" required>
+        <select name="action">
+            <option value="add">Add</option>
+            <option value="remove">Remove</option>
+        </select>
+        <button type="submit" name="update_inventory">Update Inventory</button>
+    </form>
 </div>
 
+<!-- Sales Summary -->
 <div class="section">
     <h2>💰 Sales Summary</h2>
-    <p><strong>Total Sales:</strong> $<?= number_format($total_sales, 2) ?></p>
+    <p><strong>Total Sales:</strong> $<?= number_format($sales_total ?? 0, 2) ?></p>
+    <table>
+        <tr><th>Item</th><th>Quantity Sold</th></tr>
+        <?php while ($row = $sales_summary->fetch_assoc()): ?>
+            <tr>
+                <td><?= htmlspecialchars($row['name']) ?></td>
+                <td><?= $row['sold_qty'] ?></td>
+            </tr>
+        <?php endwhile; ?>
+    </table>
 </div>
 
 <a href="landing.php">← Back to Home</a>
