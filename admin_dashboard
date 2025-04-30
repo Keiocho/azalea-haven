@@ -1,0 +1,132 @@
+<?php
+require 'db_connect.php';
+session_start();
+
+// Handle add, update, delete
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST['hire'])) {
+        $name = $_POST['name'];
+        $role = $_POST['role'];
+        $email = $_POST['email'];
+        $stmt = $conn->prepare("INSERT INTO employees (name, role, email) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $name, $role, $email);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    if (isset($_POST['fire'])) {
+        $id = intval($_POST['employee_id']);
+        $stmt = $conn->prepare("DELETE FROM employees WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    if (isset($_POST['update'])) {
+        $id = intval($_POST['employee_id']);
+        $name = $_POST['name'];
+        $role = $_POST['role'];
+        $email = $_POST['email'];
+        $stmt = $conn->prepare("UPDATE employees SET name = ?, role = ?, email = ? WHERE id = ?");
+        $stmt->bind_param("sssi", $name, $role, $email, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+// Fetch all employees
+$employees = $conn->query("SELECT * FROM employees");
+
+// Search by ID
+$search_result = null;
+if (isset($_GET['search_id'])) {
+    $search_id = intval($_GET['search_id']);
+    $stmt = $conn->prepare("SELECT * FROM employees WHERE id = ?");
+    $stmt->bind_param("i", $search_id);
+    $stmt->execute();
+    $search_result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <style>
+    body { font-family: Arial; padding: 30px; background-color: #f0f8ff; }
+    h1 { margin-bottom: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+    th, td { border: 1px solid #999; padding: 10px; text-align: center; }
+    form { margin-bottom: 30px; }
+    input, select { padding: 6px; margin: 5px; }
+    button { padding: 6px 12px; }
+    .section { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; background: #fff; }
+  </style>
+</head>
+<body>
+
+<h1>🛠️ Admin Employee Dashboard</h1>
+
+<div class="section">
+  <h2>👥 Current Employees</h2>
+  <table>
+    <tr><th>ID</th><th>Name</th><th>Role</th><th>Email</th></tr>
+    <?php while ($row = $employees->fetch_assoc()): ?>
+    <tr>
+      <td><?= $row['id'] ?></td>
+      <td><?= htmlspecialchars($row['name']) ?></td>
+      <td><?= htmlspecialchars($row['role']) ?></td>
+      <td><?= htmlspecialchars($row['email']) ?></td>
+    </tr>
+    <?php endwhile; ?>
+  </table>
+</div>
+
+<div class="section">
+  <h2>➕ Hire Employee</h2>
+  <form method="POST">
+    <input type="text" name="name" placeholder="Full Name" required>
+    <input type="text" name="role" placeholder="Role" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <button type="submit" name="hire">Add Employee</button>
+  </form>
+</div>
+
+<div class="section">
+  <h2>❌ Fire Employee</h2>
+  <form method="POST">
+    <input type="number" name="employee_id" placeholder="Employee ID" required>
+    <button type="submit" name="fire">Remove Employee</button>
+  </form>
+</div>
+
+<div class="section">
+  <h2>✏️ Update Employee Info</h2>
+  <form method="POST">
+    <input type="number" name="employee_id" placeholder="Employee ID" required>
+    <input type="text" name="name" placeholder="New Name" required>
+    <input type="text" name="role" placeholder="New Role" required>
+    <input type="email" name="email" placeholder="New Email" required>
+    <button type="submit" name="update">Update Info</button>
+  </form>
+</div>
+
+<div class="section">
+  <h2>🔍 Look Up Employee by ID</h2>
+  <form method="GET">
+    <input type="number" name="search_id" placeholder="Employee ID" required>
+    <button type="submit">Search</button>
+  </form>
+  <?php if ($search_result): ?>
+    <p><strong>Result:</strong> <?= htmlspecialchars($search_result['name']) ?>, <?= htmlspecialchars($search_result['role']) ?>, <?= htmlspecialchars($search_result['email']) ?></p>
+  <?php elseif (isset($_GET['search_id'])): ?>
+    <p>No employee found with that ID.</p>
+  <?php endif; ?>
+</div>
+
+<a href="employee.php">⬅ Back to Employee Menu</a>
+
+</body>
+</html>
