@@ -5,46 +5,97 @@ session_start();
 // Handle add, update, delete
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST['hire'])) {
-        $name = $_POST['name'];
-        $role = $_POST['role'];
-        $email = $_POST['email'];
-        $stmt = $conn->prepare("INSERT INTO employees (name, role, email) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $name, $role, $email);
+        $fName = $_POST['fName'];
+        $lName = $_POST['lName'];
+        $position = $_POST['position'];
+        $street = $_POST['street'];
+        $city = $_POST['city'];
+        $state = $_POST['state'];
+        $zip = $_POST['zip'];
+        $phone = $_POST['phone'];
+        $employmentDate = $_POST['employmentDate'];
+        $ssn = $_POST['ssn'];
+
+        $stmt = $conn->prepare("INSERT INTO Employee (fName, lName, position, street, city, state, zip, phone, employmentDate, ssn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssssssss", $fName, $lName, $position, $street, $city, $state, $zip, $phone, $employmentDate, $ssn);
         $stmt->execute();
         $stmt->close();
     }
 
     if (isset($_POST['fire'])) {
-        $id = intval($_POST['employee_id']);
-        $stmt = $conn->prepare("DELETE FROM employees WHERE id = ?");
+        $id = intval($_POST['eID']);
+        $stmt = $conn->prepare("DELETE FROM Employee WHERE eID = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $stmt->close();
     }
 
     if (isset($_POST['update'])) {
-        $id = intval($_POST['employee_id']);
-        $name = $_POST['name'];
-        $role = $_POST['role'];
-        $email = $_POST['email'];
-        $stmt = $conn->prepare("UPDATE employees SET name = ?, role = ?, email = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $name, $role, $email, $id);
+        $id = intval($_POST['eID']);
+        $fName = $_POST['fName'];
+        $lName = $_POST['lName'];
+        $position = $_POST['position'];
+        $street = $_POST['street'];
+        $city = $_POST['city'];
+        $state = $_POST['state'];
+        $zip = $_POST['zip'];
+        $phone = $_POST['phone'];
+        $employmentDate = $_POST['employmentDate'];
+        $ssn = $_POST['ssn'];
+
+        $stmt = $conn->prepare("UPDATE Employee SET fName=?, lName=?, position=?, street=?, city=?, state=?, zip=?, phone=?, employmentDate=?, ssn=? WHERE eID=?");
+        $stmt->bind_param("ssssssssssi", $fName, $lName, $position, $street, $city, $state, $zip, $phone, $employmentDate, $ssn, $id);
         $stmt->execute();
         $stmt->close();
     }
 }
 
 // Fetch all employees
-$employees = $conn->query("SELECT * FROM employees");
+$employees = $conn->query("SELECT * FROM Employee");
 
-// Search by ID
-$search_result = null;
-if (isset($_GET['search_id'])) {
-    $search_id = intval($_GET['search_id']);
-    $stmt = $conn->prepare("SELECT * FROM employees WHERE id = ?");
-    $stmt->bind_param("i", $search_id);
+// Multi-parameter search
+$search_results = [];
+if (
+    isset($_GET['search']) &&
+    (isset($_GET['search_id']) || isset($_GET['search_city']) || isset($_GET['search_date']) || isset($_GET['search_position']))
+) {
+    $query = "SELECT * FROM Employee WHERE 1=1";
+    $params = [];
+    $types = "";
+
+    if (!empty($_GET['search_id'])) {
+        $query .= " AND eID = ?";
+        $types .= "i";
+        $params[] = intval($_GET['search_id']);
+    }
+
+    if (!empty($_GET['search_city'])) {
+        $query .= " AND city LIKE ?";
+        $types .= "s";
+        $params[] = "%" . $_GET['search_city'] . "%";
+    }
+
+    if (!empty($_GET['search_date'])) {
+        $query .= " AND employmentDate = ?";
+        $types .= "s";
+        $params[] = $_GET['search_date'];
+    }
+
+    if (!empty($_GET['search_position'])) {
+        $query .= " AND position LIKE ?";
+        $types .= "s";
+        $params[] = "%" . $_GET['search_position'] . "%";
+    }
+
+    $stmt = $conn->prepare($query);
+    if ($types) {
+        $stmt->bind_param($types, ...$params);
+    }
     $stmt->execute();
-    $search_result = $stmt->get_result()->fetch_assoc();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $search_results[] = $row;
+    }
     $stmt->close();
 }
 ?>
@@ -63,6 +114,7 @@ if (isset($_GET['search_id'])) {
     input, select { padding: 6px; margin: 5px; }
     button { padding: 6px 12px; }
     .section { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; background: #fff; }
+    .inline-btns { display: inline-block; }
   </style>
 </head>
 <body>
@@ -70,26 +122,61 @@ if (isset($_GET['search_id'])) {
 <h1>🛠️ Admin Employee Dashboard</h1>
 
 <div class="section">
-  <h2>👥 Current Employees</h2>
-  <table>
-    <tr><th>ID</th><th>Name</th><th>Role</th><th>Email</th></tr>
-    <?php while ($row = $employees->fetch_assoc()): ?>
-    <tr>
-      <td><?= $row['id'] ?></td>
-      <td><?= htmlspecialchars($row['name']) ?></td>
-      <td><?= htmlspecialchars($row['role']) ?></td>
-      <td><?= htmlspecialchars($row['email']) ?></td>
-    </tr>
-    <?php endwhile; ?>
-  </table>
+  <h2>🔍 Look Up Employee</h2>
+  <form method="GET">
+    <input type="number" name="search_id" placeholder="Employee ID">
+    <input type="text" name="search_city" placeholder="City">
+    <input type="date" name="search_date" placeholder="Employment Date">
+    <input type="text" name="search_position" placeholder="Position">
+    <div class="inline-btns">
+      <button type="submit" name="search">Search</button>
+      <a href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+        <button type="button">Clear</button>
+      </a>
+    </div>
+  </form>
+
+  <?php if (isset($_GET['search'])): ?>
+    <?php if (!empty($search_results)): ?>
+      <table>
+        <tr>
+          <th>ID</th><th>First</th><th>Last</th><th>Position</th><th>Street</th><th>City</th><th>State</th><th>Zip</th><th>Phone</th><th>Start Date</th><th>SSN</th>
+        </tr>
+        <?php foreach ($search_results as $row): ?>
+        <tr>
+          <td><?= $row['eID'] ?></td>
+          <td><?= htmlspecialchars($row['fName']) ?></td>
+          <td><?= htmlspecialchars($row['lName']) ?></td>
+          <td><?= htmlspecialchars($row['position']) ?></td>
+          <td><?= htmlspecialchars($row['street']) ?></td>
+          <td><?= htmlspecialchars($row['city']) ?></td>
+          <td><?= htmlspecialchars($row['state']) ?></td>
+          <td><?= htmlspecialchars($row['zip']) ?></td>
+          <td><?= htmlspecialchars($row['phone']) ?></td>
+          <td><?= htmlspecialchars($row['employmentDate']) ?></td>
+          <td><?= htmlspecialchars($row['ssn']) ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php else: ?>
+      <p>No matching employees found.</p>
+    <?php endif; ?>
+  <?php endif; ?>
 </div>
 
 <div class="section">
   <h2>➕ Hire Employee</h2>
   <form method="POST">
-    <input type="text" name="name" placeholder="Full Name" required>
-    <input type="text" name="role" placeholder="Role" required>
-    <input type="email" name="email" placeholder="Email" required>
+    <input type="text" name="fName" placeholder="First Name" required>
+    <input type="text" name="lName" placeholder="Last Name" required>
+    <input type="text" name="position" placeholder="Position" required>
+    <input type="text" name="street" placeholder="Street">
+    <input type="text" name="city" placeholder="City">
+    <input type="text" name="state" placeholder="State (2-letter)">
+    <input type="text" name="zip" placeholder="Zip">
+    <input type="text" name="phone" placeholder="Phone" required>
+    <input type="date" name="employmentDate" required>
+    <input type="text" name="ssn" placeholder="SSN" required>
     <button type="submit" name="hire">Add Employee</button>
   </form>
 </div>
@@ -97,7 +184,7 @@ if (isset($_GET['search_id'])) {
 <div class="section">
   <h2>❌ Fire Employee</h2>
   <form method="POST">
-    <input type="number" name="employee_id" placeholder="Employee ID" required>
+    <input type="number" name="eID" placeholder="Employee ID" required>
     <button type="submit" name="fire">Remove Employee</button>
   </form>
 </div>
@@ -105,25 +192,43 @@ if (isset($_GET['search_id'])) {
 <div class="section">
   <h2>✏️ Update Employee Info</h2>
   <form method="POST">
-    <input type="number" name="employee_id" placeholder="Employee ID" required>
-    <input type="text" name="name" placeholder="New Name" required>
-    <input type="text" name="role" placeholder="New Role" required>
-    <input type="email" name="email" placeholder="New Email" required>
+    <input type="number" name="eID" placeholder="Employee ID">
+    <input type="text" name="fName" placeholder="First Name">
+    <input type="text" name="lName" placeholder="Last Name">
+    <input type="text" name="position" placeholder="Position">
+    <input type="text" name="street" placeholder="Street">
+    <input type="text" name="city" placeholder="City">
+    <input type="text" name="state" placeholder="State">
+    <input type="text" name="zip" placeholder="Zip">
+    <input type="text" name="phone" placeholder="Phone">
+    <input type="date" name="employmentDate">
+    <input type="text" name="ssn" placeholder="SSN">
     <button type="submit" name="update">Update Info</button>
   </form>
 </div>
 
 <div class="section">
-  <h2>🔍 Look Up Employee by ID</h2>
-  <form method="GET">
-    <input type="number" name="search_id" placeholder="Employee ID" required>
-    <button type="submit">Search</button>
-  </form>
-  <?php if ($search_result): ?>
-    <p><strong>Result:</strong> <?= htmlspecialchars($search_result['name']) ?>, <?= htmlspecialchars($search_result['role']) ?>, <?= htmlspecialchars($search_result['email']) ?></p>
-  <?php elseif (isset($_GET['search_id'])): ?>
-    <p>No employee found with that ID.</p>
-  <?php endif; ?>
+  <h2>👥 Current Employees</h2>
+  <table>
+    <tr>
+      <th>ID</th><th>First</th><th>Last</th><th>Position</th><th>Street</th><th>City</th><th>State</th><th>Zip</th><th>Phone</th><th>Start Date</th><th>SSN</th>
+    </tr>
+    <?php while ($row = $employees->fetch_assoc()): ?>
+    <tr>
+      <td><?= $row['eID'] ?></td>
+      <td><?= htmlspecialchars($row['fName']) ?></td>
+      <td><?= htmlspecialchars($row['lName']) ?></td>
+      <td><?= htmlspecialchars($row['position']) ?></td>
+      <td><?= htmlspecialchars($row['street']) ?></td>
+      <td><?= htmlspecialchars($row['city']) ?></td>
+      <td><?= htmlspecialchars($row['state']) ?></td>
+      <td><?= htmlspecialchars($row['zip']) ?></td>
+      <td><?= htmlspecialchars($row['phone']) ?></td>
+      <td><?= htmlspecialchars($row['employmentDate']) ?></td>
+      <td><?= htmlspecialchars($row['ssn']) ?></td>
+    </tr>
+    <?php endwhile; ?>
+  </table>
 </div>
 
 <a href="employee.php">⬅ Back to Employee Menu</a>
